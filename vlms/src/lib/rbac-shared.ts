@@ -11,6 +11,7 @@ export type Role =
   | 'APPROVER'
   | 'RECEIVER'
   | 'AP'
+  | 'TREASURY'
   | 'SUPPLIER_ADMIN'
   | 'PLATFORM_ADMIN';
 
@@ -36,9 +37,21 @@ export type Resource =
   | 'purchaseOrder'
   | 'grn'
   | 'invoice'
+  | 'bankAccount'
+  | 'paymentRequest'
+  | 'payment'
+  | 'debt'
   | 'audit';
 
-export type Action = 'view' | 'create' | 'submit' | 'approve' | 'issue' | 'acknowledge';
+export type Action =
+  | 'view'
+  | 'create'
+  | 'submit'
+  | 'approve'
+  | 'issue'
+  | 'acknowledge'
+  | 'verify'
+  | 'execute';
 
 type Matrix = Record<Role, Partial<Record<Resource, Action[]>>>;
 
@@ -66,6 +79,9 @@ const MATRIX: Matrix = {
     award: ['view', 'approve'],
     purchaseOrder: ['view', 'approve'],
     invoice: ['view'],
+    bankAccount: ['view'],
+    paymentRequest: ['view', 'approve'],
+    debt: ['view'],
     audit: ['view'],
   },
   RECEIVER: {
@@ -77,6 +93,21 @@ const MATRIX: Matrix = {
     purchaseOrder: ['view'],
     grn: ['view'],
     invoice: ['view', 'create', 'submit'],
+    // Kế toán xác minh tài khoản ngân hàng và lập đề nghị thanh toán,
+    // nhưng không tự phê duyệt và không tự chi tiền.
+    bankAccount: ['view', 'verify'],
+    paymentRequest: ['view', 'create', 'submit'],
+    debt: ['view'],
+    audit: ['view'],
+  },
+  TREASURY: {
+    purchaseOrder: ['view'],
+    invoice: ['view'],
+    bankAccount: ['view'],
+    paymentRequest: ['view'],
+    // Ngân quỹ chỉ thực hiện lệnh chi đã được phê duyệt.
+    payment: ['view', 'execute'],
+    debt: ['view'],
     audit: ['view'],
   },
   SUPPLIER_ADMIN: {
@@ -86,6 +117,10 @@ const MATRIX: Matrix = {
     purchaseOrder: ['view', 'acknowledge'],
     grn: ['view'],
     invoice: ['view', 'create', 'submit'],
+    // Nhà cung cấp tự khai tài khoản nhận tiền, nhưng không tự xác minh.
+    bankAccount: ['view', 'create'],
+    paymentRequest: ['view'],
+    payment: ['view'],
   },
   PLATFORM_ADMIN: {
     catalog: ['view', 'create'],
@@ -96,6 +131,10 @@ const MATRIX: Matrix = {
     purchaseOrder: ['view'],
     grn: ['view'],
     invoice: ['view'],
+    bankAccount: ['view'],
+    paymentRequest: ['view'],
+    payment: ['view'],
+    debt: ['view'],
     audit: ['view'],
   },
 };
@@ -110,6 +149,7 @@ const ROLE_LABELS: Record<Role, string> = {
   APPROVER: 'Người phê duyệt',
   RECEIVER: 'Người nhận hàng',
   AP: 'Kế toán công nợ',
+  TREASURY: 'Ngân quỹ',
   SUPPLIER_ADMIN: 'Quản trị nhà cung cấp',
   PLATFORM_ADMIN: 'Quản trị sàn',
 };

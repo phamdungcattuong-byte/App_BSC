@@ -20,6 +20,9 @@ const ACTION_LABELS: Record<string, string> = {
   RECEIVE: 'Nhận hàng',
   THREE_WAY_MATCH: 'Đối chiếu ba chiều',
   POST: 'Ghi sổ',
+  DECLARE: 'Khai tài khoản',
+  VERIFY: 'Xác minh tài khoản',
+  EXECUTE: 'Phát lệnh chi',
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -30,6 +33,9 @@ const ENTITY_LABELS: Record<string, string> = {
   PurchaseOrder: 'Đơn hàng',
   Grn: 'Phiếu nhận hàng',
   Invoice: 'Hóa đơn',
+  SupplierBankAccount: 'Tài khoản ngân hàng',
+  PaymentRequest: 'Đề nghị thanh toán',
+  Payment: 'Lệnh chi',
 };
 
 export default async function AuditPage() {

@@ -35,6 +35,7 @@ enum Role {
   APPROVER // Nguoi phe duyet theo han muc
   RECEIVER // Nguoi nhan hang tai cong truong
   AP // Ke toan cong no
+  TREASURY // Ngan quy, thuc hien chi tien
   SUPPLIER_ADMIN // Quan tri nha cung cap
   PLATFORM_ADMIN // Quan tri san
 }
@@ -64,6 +65,9 @@ model Organization {
   supplierGrns     Grn[]                 @relation("SupplierGrns")
   buyerInvoices    Invoice[]             @relation("BuyerInvoices")
   supplierInvoices Invoice[]             @relation("SupplierInvoices")
+  bankAccounts     SupplierBankAccount[]
+  buyerPayments    PaymentRequest[]      @relation("BuyerPaymentRequests")
+  supplierPayments PaymentRequest[]      @relation("SupplierPaymentRequests")
   auditLogs        AuditLog[]
 
   @@index([type, status])
@@ -467,6 +471,7 @@ enum InvoiceStatus {
   MATCHED
   EXCEPTION
   POSTED
+  PAID
 }
 
 enum MatchOutcome {
@@ -491,11 +496,12 @@ model Invoice {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  po          PurchaseOrder @relation(fields: [poId], references: [id])
-  buyerOrg    Organization  @relation("BuyerInvoices", fields: [buyerOrgId], references: [id])
-  supplierOrg Organization  @relation("SupplierInvoices", fields: [supplierOrgId], references: [id])
-  lines       InvoiceLine[]
-  matchResult MatchResult?
+  po           PurchaseOrder        @relation(fields: [poId], references: [id])
+  buyerOrg     Organization         @relation("BuyerInvoices", fields: [buyerOrgId], references: [id])
+  supplierOrg  Organization         @relation("SupplierInvoices", fields: [supplierOrgId], references: [id])
+  lines        InvoiceLine[]
+  matchResult  MatchResult?
+  paymentLines PaymentRequestLine[]
 
   @@unique([supplierOrgId, code])
   @@index([poId])
@@ -557,4 +563,109 @@ model IdempotencyKey {
   createdAt DateTime @default(now())
 
   @@index([scope])
+}
+
+// -------------------------------- FIN-02, FIN-03 Thanh toan va cong no
+
+enum BankAccountStatus {
+  PENDING // Nha cung cap vua khai, chua duoc xac minh
+  VERIFIED // Da xac minh, duoc phep nhan tien
+  REJECTED
+  SUPERSEDED // Bi thay the boi tai khoan moi
+}
+
+/// Tai khoan ngan hang cua nha cung cap.
+///
+/// Doi tai khoan la kenh gian lan pho bien nhat trong thanh toan B2B (CT-06).
+/// Moi lan khai moi deu phai qua xac minh doc lap, va nguoi xac minh khong duoc
+/// la nguoi phe duyet de nghi thanh toan dung tai khoan do.
+model SupplierBankAccount {
+  id             String            @id @default(cuid())
+  organizationId String
+  bankName       String
+  branch         String?
+  accountNumber  String
+  accountHolder  String
+  status         BankAccountStatus @default(PENDING)
+  declaredById   String
+  verifiedById   String?
+  verifiedAt     DateTime?
+  rejectReason   String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  paymentRequests PaymentRequest[]
+
+  @@unique([organizationId, accountNumber])
+  @@index([organizationId, status])
+}
+
+enum PaymentRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+model PaymentRequest {
+  id             String               @id @default(cuid())
+  code           String
+  buyerOrgId     String
+  supplierOrgId  String
+  bankAccountId  String
+  status         PaymentRequestStatus @default(DRAFT)
+  totalAmount    Decimal              @db.Decimal(18, 2)
+  dueDate        DateTime
+  note           String?
+  createdById    String
+  submittedAt    DateTime?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionReason String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  buyerOrg    Organization         @relation("BuyerPaymentRequests", fields: [buyerOrgId], references: [id])
+  supplierOrg Organization         @relation("SupplierPaymentRequests", fields: [supplierOrgId], references: [id])
+  bankAccount SupplierBankAccount  @relation(fields: [bankAccountId], references: [id])
+  lines       PaymentRequestLine[]
+  payment     Payment?
+
+  @@unique([buyerOrgId, code])
+  @@index([buyerOrgId, status])
+}
+
+model PaymentRequestLine {
+  id               String  @id @default(cuid())
+  paymentRequestId String
+  invoiceId        String
+  amount           Decimal @db.Decimal(18, 2)
+
+  paymentRequest PaymentRequest @relation(fields: [paymentRequestId], references: [id], onDelete: Cascade)
+  invoice        Invoice        @relation(fields: [invoiceId], references: [id])
+
+  @@unique([paymentRequestId, invoiceId])
+  @@index([invoiceId])
+}
+
+enum PaymentStatus {
+  SENT
+  PAID
+  FAILED
+}
+
+/// Lenh chi da phat ra ngan hang. Bat bien sau khi tao.
+model Payment {
+  id               String        @id @default(cuid())
+  code             String
+  paymentRequestId String        @unique
+  status           PaymentStatus @default(SENT)
+  amount           Decimal       @db.Decimal(18, 2)
+  bankRef          String
+  executedById     String
+  executedAt       DateTime      @default(now())
+
+  paymentRequest PaymentRequest @relation(fields: [paymentRequestId], references: [id])
 }

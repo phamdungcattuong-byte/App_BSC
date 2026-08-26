@@ -8,6 +8,7 @@ export const USERS = {
   approver: 'pheduyet@cattuong.vn',
   receiver: 'nhanhang@cattuong.vn',
   ap: 'ketoan@cattuong.vn',
+  treasury: 'nganquy@cattuong.vn',
   supplierSteel: 'ncc.thep@donga.vn',
   supplierGeneral: 'ncc.vlxd@namphat.vn',
 } as const;

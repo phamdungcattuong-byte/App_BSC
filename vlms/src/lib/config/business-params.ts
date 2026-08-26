@@ -80,6 +80,25 @@ export const BUSINESS_PARAMS = {
   /** FUL-04 — Ngưỡng điều chỉnh kho cần người phê duyệt độc lập. */
   inventoryAdjustmentThreshold: 5_000_000,
 
+  /**
+   * FIN-02 — Hạn mức phê duyệt đề nghị thanh toán.
+   * Dùng chung thang bậc với đề nghị mua cho tới khi PD-03 tách riêng.
+   */
+  paymentApprovalTiers: 'dùng chung approvalTiers' as const,
+
+  /** FIN-02 — Số ngày mặc định tới hạn thanh toán kể từ ngày lập đề nghị. */
+  paymentTermDays: 30,
+
+  /**
+   * FIN-03 — Ngưỡng maker-checker cho lệnh chi.
+   * Trên ngưỡng này, người thực hiện chi phải khác người lập đề nghị.
+   * Dưới ngưỡng vẫn áp dụng, để ở đây cho PD-03 quyết định nới hay không.
+   */
+  paymentMakerCheckerThreshold: 0,
+
+  /** FIN-04 — Các mốc tuổi nợ dùng cho báo cáo công nợ, tính theo ngày. */
+  debtAgingBuckets: [30, 60, 90] as number[],
+
   /** Thuế suất GTGT mặc định khi nhà cung cấp không khai. */
   defaultTaxRate: 0.08,
 

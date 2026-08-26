@@ -18,6 +18,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (can(role, 'purchaseOrder', 'view')) items.push({ href: '/don-hang', label: 'Đơn hàng' });
   if (can(role, 'grn', 'view')) items.push({ href: '/nhan-hang', label: 'Nhận hàng' });
   if (can(role, 'invoice', 'view')) items.push({ href: '/hoa-don', label: 'Hóa đơn' });
+  if (can(role, 'bankAccount', 'view'))
+    items.push({ href: '/tai-khoan-ngan-hang', label: 'Tài khoản ngân hàng' });
+  if (can(role, 'paymentRequest', 'view'))
+    items.push({ href: '/de-nghi-thanh-toan', label: 'Đề nghị thanh toán' });
+  if (can(role, 'debt', 'view')) items.push({ href: '/cong-no', label: 'Công nợ' });
   if (can(role, 'audit', 'view')) items.push({ href: '/nhat-ky', label: 'Nhật ký kiểm toán' });
 
   return (

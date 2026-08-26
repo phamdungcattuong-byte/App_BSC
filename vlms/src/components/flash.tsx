@@ -7,6 +7,13 @@ const MESSAGES: Record<string, string> = {
   'da-xac-nhan-po': 'Đã xác nhận đơn hàng.',
   'da-nhan-hang': 'Đã ghi nhận phiếu nhận hàng.',
   'da-ghi-so': 'Đã ghi sổ hóa đơn.',
+  'da-khai-tk': 'Đã khai tài khoản ngân hàng. Tài khoản chờ bên mua xác minh.',
+  'da-xac-minh-tk': 'Đã xác minh tài khoản ngân hàng.',
+  'da-tu-choi-tk': 'Đã từ chối tài khoản ngân hàng.',
+  'da-trinh-tt': 'Đã trình duyệt đề nghị thanh toán.',
+  'da-duyet-tt': 'Đã phê duyệt đề nghị thanh toán.',
+  'da-tu-choi-tt': 'Đã từ chối đề nghị thanh toán.',
+  'da-chi-tien': 'Đã phát lệnh chi và cập nhật công nợ.',
 };
 
 /**

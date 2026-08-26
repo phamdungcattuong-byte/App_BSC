@@ -4,8 +4,9 @@
 CTG BuildHub V1.0**. Phạm vi hiện tại là xương sống thương mại R2:
 
 ```
-Đề nghị mua → Phê duyệt → Hỏi giá → Báo giá → Chọn NCC
-   → Đơn hàng → Xác nhận → Nhận hàng → Hóa đơn → Đối chiếu ba chiều → Ghi sổ
+Đề nghị mua → Phê duyệt → Hỏi giá → Báo giá → Chọn NCC → Đơn hàng → Xác nhận
+   → Nhận hàng → Hóa đơn → Đối chiếu ba chiều → Ghi sổ
+   → Đề nghị thanh toán → Phê duyệt → Lệnh chi → Công nợ
 ```
 
 ---
@@ -71,7 +72,8 @@ Mật khẩu chung cho mọi tài khoản: `matkhau123`
 | `pheduyet@cattuong.vn` | Người phê duyệt | Phê duyệt hoặc từ chối đề nghị mua |
 | `muahang@cattuong.vn` | Chuyên viên mua hàng | Phát hành RFQ, so sánh báo giá, chọn NCC, phát hành đơn hàng |
 | `nhanhang@cattuong.vn` | Người nhận hàng | Ghi nhận nhận hàng tại công trường |
-| `ketoan@cattuong.vn` | Kế toán công nợ | Tiếp nhận hóa đơn, đối chiếu ba chiều, ghi sổ |
+| `ketoan@cattuong.vn` | Kế toán công nợ | Tiếp nhận hóa đơn, đối chiếu ba chiều, ghi sổ, xác minh tài khoản NCC, lập đề nghị thanh toán |
+| `nganquy@cattuong.vn` | Ngân quỹ | Thực hiện lệnh chi cho đề nghị đã được phê duyệt |
 | `ncc.thep@donga.vn` | Nhà cung cấp thép | Nộp báo giá, xác nhận đơn hàng |
 | `ncc.ximang@binhminh.vn` | Nhà cung cấp xi măng | Nộp báo giá, xác nhận đơn hàng |
 | `ncc.vlxd@namphat.vn` | Nhà cung cấp tổng hợp | Nộp báo giá, xác nhận đơn hàng |
@@ -104,6 +106,9 @@ src/
       don-hang/           Đơn hàng, xác nhận, nhận hàng, hóa đơn
       nhan-hang/          Phiếu nhận hàng
       hoa-don/            Hóa đơn và kết quả đối chiếu ba chiều
+      tai-khoan-ngan-hang/ Khai và xác minh tài khoản nhận tiền
+      de-nghi-thanh-toan/ Đề nghị thanh toán, phê duyệt, lệnh chi
+      cong-no/            Công nợ phải trả theo tuổi nợ
       nhat-ky/            Nhật ký kiểm toán
   features/               Quy tắc nghiệp vụ, tách khỏi giao diện
   lib/                    Hạ tầng dùng chung
@@ -127,6 +132,11 @@ Những quy tắc này được ép ở tầng nghiệp vụ, không thể lách
 | SRC-03 | Báo giá đã nộp bị khóa, không sửa được | `features/sourcing/service.ts` |
 | SRC-05 | Chọn nhà cung cấp bắt buộc nêu lý do, lưu vĩnh viễn | `features/sourcing/service.ts` |
 | AUTH-403 | Thiếu quyền trả 404, không tiết lộ tài nguyên có tồn tại hay không | `src/middleware.ts` |
+| CT-06 | Đổi tài khoản ngân hàng làm mất hiệu lực tài khoản cũ, phải xác minh lại | `features/payment/service.ts` |
+| CT-06 | Người xác minh tài khoản không được phê duyệt lệnh chi vào chính tài khoản đó | `features/payment/service.ts` |
+| FIN-02 | Chỉ hóa đơn đã ghi sổ mới đưa được vào đề nghị thanh toán | `features/payment/service.ts` |
+| FIN-02 | Một hóa đơn không nằm trong hai đề nghị thanh toán cùng lúc | `features/payment/service.ts` |
+| FIN-03 | Maker-checker: người lập đề nghị không được thực hiện lệnh chi | `features/payment/service.ts` |
 
 ---
 
@@ -148,6 +158,8 @@ Những quy tắc này được ép ở tầng nghiệp vụ, không thể lách
 | Hạn mức phê duyệt bậc 2 | đến 500.000.000 đ |
 | Dung sai nhận vượt đơn hàng | 2% |
 | Dung sai đơn giá khi đối chiếu ba chiều | 1% |
+| Hạn thanh toán mặc định | 30 ngày |
+| Mốc tuổi nợ dùng cho báo cáo công nợ | 30 / 60 / 90 ngày |
 | Ngưỡng điều chỉnh kho cần duyệt độc lập | 5.000.000 đ |
 | Thuế suất GTGT mặc định | 8% |
 
@@ -165,10 +177,14 @@ npm run test:e2e
 
 | Bài kiểm thử | Nội dung |
 |---|---|
-| `commerce-flow.spec.ts` | Đi trọn luồng qua sáu vai, mỗi vai một phiên trình duyệt riêng |
+| `commerce-flow.spec.ts` | Đi trọn luồng từ đề nghị mua tới lệnh chi, qua bảy vai, mỗi vai một phiên trình duyệt riêng |
 | `controls.spec.ts` | CT-01 chặn truy cập chéo tổ chức, phân tách nhiệm vụ, chặn theo vai trò |
+| `payment-controls.spec.ts` | CT-06 gian lận đổi tài khoản ngân hàng, tự xác minh, và ranh giới quyền của ngân quỹ |
 
-Kết quả trên môi trường phát triển: **4/4 đạt, khoảng 19 giây**, ổn định qua nhiều lượt chạy.
+Kết quả trên môi trường phát triển: **7/7 đạt, khoảng 18 giây**, ổn định qua nhiều lượt chạy.
+
+Lưu ý khi chạy: khởi động server rồi mới chạy kiểm thử, và để server ấm vài giây.
+Chạy ngay lúc server vừa khởi động có thể làm bài kiểm thử đầu tiên chờ quá lâu.
 
 Ảnh màn hình nghiệm thu nằm trong `docs/anh-man-hinh/`.
 
@@ -194,7 +210,9 @@ Kết quả trên môi trường phát triển: **4/4 đạt, khoảng 19 giây*
 
 Những phần sau nằm ngoài đợt này, cần bổ sung trước khi dùng thật:
 
-- Thanh toán, công nợ và đối soát ngân hàng (FIN-02, FIN-03, FIN-04)
+- Đối soát sao kê ngân hàng và hạch toán tự động (phần còn lại của FIN-03)
+- Quyết toán hợp đồng và đóng công nợ cuối kỳ (FIN-04)
+- Xử lý thiếu, thừa, sai và trả hàng (FUL-03)
 - Kho, tồn kho và đối chiếu tiêu hao (FUL-04, FUL-05)
 - Thi công, nghiệm thu, an toàn (nhóm CON)
 - Đội thợ và chấm công (nhóm WRK)

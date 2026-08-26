@@ -114,8 +114,44 @@ test('Luồng mua hàng đầy đủ từ đề nghị mua đến ghi sổ hóa 
   await expect(ap.page.getByText('Đã ghi sổ', { exact: true })).toBeVisible();
   await expect(ap.page.getByRole('button', { name: 'Ghi sổ hóa đơn' })).toBeDisabled();
 
-  // 12. Nhật ký kiểm toán lưu lại toàn bộ chuỗi hành động.
+  // 12. Kế toán lập đề nghị thanh toán từ hóa đơn đã ghi sổ.
+  await ap.page.goto('/de-nghi-thanh-toan/moi');
+  await ap.page.getByRole('checkbox').first().check();
+  await ap.page.getByRole('button', { name: 'Lập đề nghị thanh toán' }).click();
+  await expect(ap.page.getByRole('heading', { name: /Đề nghị thanh toán DNTT-/ })).toBeVisible();
+  const requestUrl = ap.page.url().split('?')[0];
+
+  await ap.page.getByRole('button', { name: 'Trình duyệt' }).click();
+  await expect(ap.page.getByText('Đã trình', { exact: true })).toBeVisible();
+
+  // Kế toán vừa là người xác minh tài khoản vừa là người lập, nên không được duyệt.
+  await expect(ap.page.getByRole('button', { name: 'Phê duyệt' })).toHaveCount(0);
+
+  // 13. Nhật ký kiểm toán lưu lại toàn bộ chuỗi hành động.
   await ap.page.goto('/nhat-ky');
   await expect(ap.page.getByText('Đối chiếu ba chiều').first()).toBeVisible();
   await ap.close();
+
+  // 14. Người phê duyệt duyệt đề nghị thanh toán.
+  const payApprover = await actor(browser, USERS.approver);
+  await payApprover.page.goto(requestUrl);
+  await payApprover.page
+    .getByLabel('Lý do quyết định')
+    .fill('Hồ sơ đầy đủ, tài khoản nhận đã xác minh');
+  await payApprover.page.getByRole('button', { name: 'Phê duyệt' }).click();
+  await expect(payApprover.page.getByText('Đã duyệt', { exact: true })).toBeVisible();
+  await payApprover.close();
+
+  // 15. Ngân quỹ phát lệnh chi, hóa đơn chuyển sang đã thanh toán.
+  const treasury = await actor(browser, USERS.treasury);
+  await treasury.page.goto(requestUrl);
+  await treasury.page.getByLabel('Số tham chiếu giao dịch ngân hàng').fill(`FT${Date.now()}`);
+  await treasury.page.getByRole('button', { name: 'Phát lệnh chi' }).click();
+  await expect(treasury.page.getByRole('heading', { name: 'Lệnh chi đã thực hiện' })).toBeVisible();
+  await expect(treasury.page.getByText('Đã thanh toán').first()).toBeVisible();
+
+  // 16. Công nợ giảm về 0 sau khi chi.
+  await treasury.page.goto('/cong-no');
+  await expect(treasury.page.getByText('Không còn công nợ phải trả')).toBeVisible();
+  await treasury.close();
 });

@@ -36,6 +36,14 @@ const STATUS: Record<string, { label: string; tone: keyof typeof TONES }> = {
   MATCHED: { label: 'Khớp ba chiều', tone: 'success' },
   EXCEPTION: { label: 'Có sai lệch', tone: 'danger' },
   POSTED: { label: 'Đã ghi sổ', tone: 'success' },
+  // Tài khoản ngân hàng
+  PENDING: { label: 'Chờ xác minh', tone: 'warning' },
+  VERIFIED: { label: 'Đã xác minh', tone: 'success' },
+  SUPERSEDED: { label: 'Đã thay thế', tone: 'neutral' },
+  // Thanh toán
+  PAID: { label: 'Đã thanh toán', tone: 'success' },
+  SENT: { label: 'Đã gửi ngân hàng', tone: 'progress' },
+  FAILED: { label: 'Chi thất bại', tone: 'danger' },
   // Kết quả đối chiếu
   QTY_MISMATCH: { label: 'Lệch số lượng', tone: 'danger' },
   PRICE_MISMATCH: { label: 'Lệch đơn giá', tone: 'danger' },

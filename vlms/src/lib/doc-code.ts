@@ -6,7 +6,7 @@ import type { Prisma } from '@prisma/client';
  */
 export async function nextDocCode(
   tx: Prisma.TransactionClient,
-  entity: 'PR' | 'RFQ' | 'BG' | 'PO' | 'PNH' | 'HD',
+  entity: 'PR' | 'RFQ' | 'BG' | 'PO' | 'PNH' | 'HD' | 'DNTT' | 'LC',
   scope: { organizationId: string },
 ): Promise<string> {
   const year = new Date().getFullYear();
@@ -19,6 +19,9 @@ export async function nextDocCode(
     PO: () => tx.purchaseOrder.count({ where: { buyerOrgId: scope.organizationId } }),
     PNH: () => tx.grn.count({ where: { buyerOrgId: scope.organizationId } }),
     HD: () => tx.invoice.count({ where: { supplierOrgId: scope.organizationId } }),
+    DNTT: () => tx.paymentRequest.count({ where: { buyerOrgId: scope.organizationId } }),
+    LC: () =>
+      tx.payment.count({ where: { paymentRequest: { buyerOrgId: scope.organizationId } } }),
   };
 
   const count = await counters[entity]();

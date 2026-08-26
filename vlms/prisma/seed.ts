@@ -10,6 +10,10 @@ async function main() {
   await prisma.$transaction([
     prisma.auditLog.deleteMany(),
     prisma.idempotencyKey.deleteMany(),
+    prisma.payment.deleteMany(),
+    prisma.paymentRequestLine.deleteMany(),
+    prisma.paymentRequest.deleteMany(),
+    prisma.supplierBankAccount.deleteMany(),
     prisma.matchResult.deleteMany(),
     prisma.invoiceLine.deleteMany(),
     prisma.invoice.deleteMany(),
@@ -79,6 +83,7 @@ async function main() {
     { email: 'pheduyet@cattuong.vn', fullName: 'Lê Minh Hoàng', role: Role.APPROVER },
     { email: 'nhanhang@cattuong.vn', fullName: 'Phạm Văn Tiến', role: Role.RECEIVER },
     { email: 'ketoan@cattuong.vn', fullName: 'Vũ Thu Hà', role: Role.AP },
+    { email: 'nganquy@cattuong.vn', fullName: 'Đỗ Trung Kiên', role: Role.TREASURY },
   ];
   for (const u of buyerUsers) {
     await prisma.user.create({
@@ -214,11 +219,43 @@ async function main() {
     }
   }
 
+  console.log('Tạo tài khoản ngân hàng nhà cung cấp...');
+  // Một tài khoản đã xác minh sẵn để luồng thanh toán chạy được ngay,
+  // người xác minh là kế toán công nợ nên người phê duyệt phải là người khác.
+  const apUser = await prisma.user.findUniqueOrThrow({
+    where: { email: 'ketoan@cattuong.vn' },
+  });
+  const bankSeeds = [
+    { idx: 0, bank: 'Ngân hàng TMCP Ngoại thương Việt Nam', branch: 'Chi nhánh Bình Dương', number: '0071000123456' },
+    { idx: 1, bank: 'Ngân hàng TMCP Công thương Việt Nam', branch: 'Chi nhánh Long An', number: '0102000654321' },
+    { idx: 2, bank: 'Ngân hàng TMCP Á Châu', branch: 'Chi nhánh Thủ Đức', number: '0203000987654' },
+  ];
+  for (const b of bankSeeds) {
+    const supplier = suppliers[b.idx];
+    const supplierAdmin = await prisma.user.findFirstOrThrow({
+      where: { organizationId: supplier.id, role: Role.SUPPLIER_ADMIN },
+    });
+    await prisma.supplierBankAccount.create({
+      data: {
+        organizationId: supplier.id,
+        bankName: b.bank,
+        branch: b.branch,
+        accountNumber: b.number,
+        accountHolder: supplier.name.toUpperCase(),
+        status: 'VERIFIED',
+        declaredById: supplierAdmin.id,
+        verifiedById: apUser.id,
+        verifiedAt: new Date(),
+      },
+    });
+  }
+
   const counts = {
     'tổ chức': await prisma.organization.count(),
     'người dùng': await prisma.user.count(),
     'vật liệu': await prisma.material.count(),
     'SKU catalog': await prisma.catalogItem.count(),
+    'tài khoản ngân hàng': await prisma.supplierBankAccount.count(),
     WBS: wbsList.length,
   };
   console.log('Seed hoàn tất:', counts);

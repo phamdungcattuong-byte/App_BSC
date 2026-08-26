@@ -69,6 +69,9 @@ export const config = {
     '/don-hang/:path*',
     '/nhan-hang/:path*',
     '/hoa-don/:path*',
+    '/tai-khoan-ngan-hang/:path*',
+    '/de-nghi-thanh-toan/:path*',
+    '/cong-no/:path*',
     '/nhat-ky/:path*',
   ],
 };
