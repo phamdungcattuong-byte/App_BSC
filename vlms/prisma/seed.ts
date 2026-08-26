@@ -10,6 +10,9 @@ async function main() {
   await prisma.$transaction([
     prisma.auditLog.deleteMany(),
     prisma.idempotencyKey.deleteMany(),
+    // Xóa theo đúng thứ tự phụ thuộc khóa ngoại: bản ghi con trước, cha sau.
+    prisma.creditNote.deleteMany(),
+    prisma.discrepancy.deleteMany(),
     prisma.payment.deleteMany(),
     prisma.paymentRequestLine.deleteMany(),
     prisma.paymentRequest.deleteMany(),

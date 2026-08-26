@@ -37,6 +37,7 @@ export type Resource =
   | 'purchaseOrder'
   | 'grn'
   | 'invoice'
+  | 'discrepancy'
   | 'bankAccount'
   | 'paymentRequest'
   | 'payment'
@@ -51,7 +52,9 @@ export type Action =
   | 'issue'
   | 'acknowledge'
   | 'verify'
-  | 'execute';
+  | 'execute'
+  | 'respond'
+  | 'resolve';
 
 type Matrix = Record<Role, Partial<Record<Resource, Action[]>>>;
 
@@ -70,6 +73,8 @@ const MATRIX: Matrix = {
     purchaseOrder: ['view', 'create', 'issue'],
     grn: ['view'],
     invoice: ['view'],
+    // Chuyên viên mua hàng là người chốt hướng xử lý sai lệch với nhà cung cấp.
+    discrepancy: ['view', 'create', 'resolve'],
     audit: ['view'],
   },
   APPROVER: {
@@ -88,11 +93,14 @@ const MATRIX: Matrix = {
     catalog: ['view'],
     purchaseOrder: ['view'],
     grn: ['view', 'create', 'submit'],
+    // Người nhận hàng ghi nhận sai lệch nhưng không tự chốt hướng xử lý.
+    discrepancy: ['view', 'create'],
   },
   AP: {
     purchaseOrder: ['view'],
     grn: ['view'],
     invoice: ['view', 'create', 'submit'],
+    discrepancy: ['view'],
     // Kế toán xác minh tài khoản ngân hàng và lập đề nghị thanh toán,
     // nhưng không tự phê duyệt và không tự chi tiền.
     bankAccount: ['view', 'verify'],
@@ -121,6 +129,8 @@ const MATRIX: Matrix = {
     bankAccount: ['view', 'create'],
     paymentRequest: ['view'],
     payment: ['view'],
+    // Nhà cung cấp phản hồi sai lệch, không được tự chốt hướng xử lý.
+    discrepancy: ['view', 'respond'],
   },
   PLATFORM_ADMIN: {
     catalog: ['view', 'create'],
@@ -131,6 +141,7 @@ const MATRIX: Matrix = {
     purchaseOrder: ['view'],
     grn: ['view'],
     invoice: ['view'],
+    discrepancy: ['view'],
     bankAccount: ['view'],
     paymentRequest: ['view'],
     payment: ['view'],

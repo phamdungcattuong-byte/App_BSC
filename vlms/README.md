@@ -180,8 +180,9 @@ npm run test:e2e
 | `commerce-flow.spec.ts` | Đi trọn luồng từ đề nghị mua tới lệnh chi, qua bảy vai, mỗi vai một phiên trình duyệt riêng |
 | `controls.spec.ts` | CT-01 chặn truy cập chéo tổ chức, phân tách nhiệm vụ, chặn theo vai trò |
 | `payment-controls.spec.ts` | CT-06 gian lận đổi tài khoản ngân hàng, tự xác minh, và ranh giới quyền của ngân quỹ |
+| `discrepancy.spec.ts` | FUL-03 hàng bị từ chối khi nhận tự mở hồ sơ sai lệch, phiếu nhận hàng giữ nguyên |
 
-Kết quả trên môi trường phát triển: **7/7 đạt, khoảng 18 giây**, ổn định qua nhiều lượt chạy.
+Kết quả trên môi trường phát triển: **8/8 đạt, khoảng 25 giây**, ổn định qua nhiều lượt chạy.
 
 Lưu ý khi chạy: khởi động server rồi mới chạy kiểm thử, và để server ấm vài giây.
 Chạy ngay lúc server vừa khởi động có thể làm bài kiểm thử đầu tiên chờ quá lâu.
@@ -212,7 +213,7 @@ Những phần sau nằm ngoài đợt này, cần bổ sung trước khi dùng 
 
 - Đối soát sao kê ngân hàng và hạch toán tự động (phần còn lại của FIN-03)
 - Quyết toán hợp đồng và đóng công nợ cuối kỳ (FIN-04)
-- Xử lý thiếu, thừa, sai và trả hàng (FUL-03)
+- Giao diện xử lý sai lệch FUL-03 (tầng dữ liệu và nghiệp vụ đã xong, còn màn hình)
 - Kho, tồn kho và đối chiếu tiêu hao (FUL-04, FUL-05)
 - Thi công, nghiệm thu, an toàn (nhóm CON)
 - Đội thợ và chấm công (nhóm WRK)

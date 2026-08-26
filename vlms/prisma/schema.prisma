@@ -52,23 +52,27 @@ model Organization {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  users            User[]
-  projects         Project[]
-  catalogItems     CatalogItem[]
-  requisitions     PurchaseRequisition[]
-  rfqs             Rfq[]
-  invitations      RfqInvitation[]
-  quotes           Quote[]
-  buyerOrders      PurchaseOrder[]       @relation("BuyerOrders")
-  supplierOrders   PurchaseOrder[]       @relation("SupplierOrders")
-  buyerGrns        Grn[]                 @relation("BuyerGrns")
-  supplierGrns     Grn[]                 @relation("SupplierGrns")
-  buyerInvoices    Invoice[]             @relation("BuyerInvoices")
-  supplierInvoices Invoice[]             @relation("SupplierInvoices")
-  bankAccounts     SupplierBankAccount[]
-  buyerPayments    PaymentRequest[]      @relation("BuyerPaymentRequests")
-  supplierPayments PaymentRequest[]      @relation("SupplierPaymentRequests")
-  auditLogs        AuditLog[]
+  users                 User[]
+  projects              Project[]
+  catalogItems          CatalogItem[]
+  requisitions          PurchaseRequisition[]
+  rfqs                  Rfq[]
+  invitations           RfqInvitation[]
+  quotes                Quote[]
+  buyerOrders           PurchaseOrder[]       @relation("BuyerOrders")
+  supplierOrders        PurchaseOrder[]       @relation("SupplierOrders")
+  buyerGrns             Grn[]                 @relation("BuyerGrns")
+  supplierGrns          Grn[]                 @relation("SupplierGrns")
+  buyerInvoices         Invoice[]             @relation("BuyerInvoices")
+  supplierInvoices      Invoice[]             @relation("SupplierInvoices")
+  bankAccounts          SupplierBankAccount[]
+  buyerPayments         PaymentRequest[]      @relation("BuyerPaymentRequests")
+  supplierPayments      PaymentRequest[]      @relation("SupplierPaymentRequests")
+  buyerDiscrepancies    Discrepancy[]         @relation("BuyerDiscrepancies")
+  supplierDiscrepancies Discrepancy[]         @relation("SupplierDiscrepancies")
+  buyerCreditNotes      CreditNote[]          @relation("BuyerCreditNotes")
+  supplierCreditNotes   CreditNote[]          @relation("SupplierCreditNotes")
+  auditLogs             AuditLog[]
 
   @@index([type, status])
 }
@@ -440,10 +444,11 @@ model Grn {
   note          String?
   createdAt     DateTime  @default(now())
 
-  po          PurchaseOrder @relation(fields: [poId], references: [id])
-  buyerOrg    Organization  @relation("BuyerGrns", fields: [buyerOrgId], references: [id])
-  supplierOrg Organization  @relation("SupplierGrns", fields: [supplierOrgId], references: [id])
-  lines       GrnLine[]
+  po            PurchaseOrder @relation(fields: [poId], references: [id])
+  buyerOrg      Organization  @relation("BuyerGrns", fields: [buyerOrgId], references: [id])
+  supplierOrg   Organization  @relation("SupplierGrns", fields: [supplierOrgId], references: [id])
+  lines         GrnLine[]
+  discrepancies Discrepancy[]
 
   @@unique([buyerOrgId, code])
   @@index([poId])
@@ -458,8 +463,9 @@ model GrnLine {
   rejectedQty  Decimal @default(0) @db.Decimal(18, 3)
   reason       String?
 
-  grn    Grn    @relation(fields: [grnId], references: [id], onDelete: Cascade)
-  poLine PoLine @relation(fields: [poLineId], references: [id])
+  grn           Grn           @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  poLine        PoLine        @relation(fields: [poLineId], references: [id])
+  discrepancies Discrepancy[]
 
   @@index([grnId])
 }
@@ -668,4 +674,92 @@ model Payment {
   executedAt       DateTime      @default(now())
 
   paymentRequest PaymentRequest @relation(fields: [paymentRequestId], references: [id])
+}
+
+// ---------------------------- FUL-03 Thieu, thua, sai va tra hang
+
+enum DiscrepancyType {
+  SHORTAGE // Giao thieu so voi phieu giao
+  OVERAGE // Giao thua
+  QUALITY // Hang loi, khong dat chat luong
+  WRONG_ITEM // Sai quy cach, sai chung loai
+}
+
+enum DiscrepancyStatus {
+  OPEN // Vua ghi nhan, cho nha cung cap phan hoi
+  INVESTIGATING // Nha cung cap da phan hoi, dang lam ro
+  AGREED // Hai ben thong nhat huong xu ly
+  CLOSED // Da xu ly xong
+}
+
+enum Responsibility {
+  SUPPLIER
+  BUYER
+  CARRIER
+  UNDETERMINED
+}
+
+enum DiscrepancyResolution {
+  REPLACE // Nha cung cap giao bu
+  RETURN // Tra lai hang da nhan
+  CREDIT // Giam tru cong no
+  ACCEPT // Chap nhan, khong dieu chinh
+}
+
+/// Sai lech phat hien khi nhan hang.
+///
+/// Phieu nhan hang goc KHONG bao gio bi sua. Moi dieu chinh deu di qua ban ghi
+/// nay va co dau vet kiem toan rieng, dung nguyen tac BR-GEN-02.
+model Discrepancy {
+  id             String                 @id @default(cuid())
+  code           String
+  grnId          String
+  grnLineId      String
+  buyerOrgId     String
+  supplierOrgId  String
+  type           DiscrepancyType
+  status         DiscrepancyStatus      @default(OPEN)
+  quantity       Decimal                @db.Decimal(18, 3)
+  responsibility Responsibility         @default(UNDETERMINED)
+  resolution     DiscrepancyResolution?
+  description    String
+  supplierNote   String?
+  resolutionNote String?
+  creditAmount   Decimal?               @db.Decimal(18, 2)
+  raisedById     String
+  respondedById  String?
+  respondedAt    DateTime?
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  grn         Grn          @relation(fields: [grnId], references: [id])
+  grnLine     GrnLine      @relation(fields: [grnLineId], references: [id])
+  buyerOrg    Organization @relation("BuyerDiscrepancies", fields: [buyerOrgId], references: [id])
+  supplierOrg Organization @relation("SupplierDiscrepancies", fields: [supplierOrgId], references: [id])
+  creditNote  CreditNote?
+
+  @@unique([buyerOrgId, code])
+  @@index([buyerOrgId, status])
+  @@index([supplierOrgId, status])
+}
+
+/// Khoan giam tru cong no phat sinh tu mot sai lech da duoc thong nhat.
+model CreditNote {
+  id            String   @id @default(cuid())
+  code          String
+  discrepancyId String   @unique
+  buyerOrgId    String
+  supplierOrgId String
+  amount        Decimal  @db.Decimal(18, 2)
+  issuedById    String
+  createdAt     DateTime @default(now())
+
+  discrepancy Discrepancy  @relation(fields: [discrepancyId], references: [id])
+  buyerOrg    Organization @relation("BuyerCreditNotes", fields: [buyerOrgId], references: [id])
+  supplierOrg Organization @relation("SupplierCreditNotes", fields: [supplierOrgId], references: [id])
+
+  @@unique([buyerOrgId, code])
+  @@index([supplierOrgId])
 }

@@ -5,6 +5,7 @@ import { writeAudit } from '@/lib/audit';
 import { nextDocCode } from '@/lib/doc-code';
 import { runIdempotent } from '@/lib/idempotency';
 import { conflict, dependency, invalid } from '@/lib/errors';
+import { createDiscrepancy } from '@/features/discrepancy/service';
 import { BUSINESS_PARAMS } from '@/lib/config/business-params';
 import type { SessionUser } from '@/lib/auth';
 import { num } from '@/lib/money';
@@ -263,10 +264,31 @@ export async function receiveGoods(
       },
     });
 
-    await tx.purchaseOrder.update({
-      where: { id: poId },
-      data: { status: allComplete ? PoStatus.RECEIVING : PoStatus.RECEIVING },
+    await tx.purchaseOrder.update({ where: { id: poId }, data: { status: PoStatus.RECEIVING } });
+
+    // Hàng bị từ chối tại công trường tự mở hồ sơ sai lệch để hai bên xử lý.
+    // Phiếu nhận hàng vừa tạo không bị sửa; mọi điều chỉnh đi qua hồ sơ đó.
+    const created = await tx.grnLine.findMany({
+      where: { grnId: grn.id },
+      include: { poLine: { include: { material: true } } },
     });
+    for (const line of created) {
+      const rejected = num(line.rejectedQty);
+      if (rejected <= 0) continue;
+      const input = lines.find((l) => l.poLineId === line.poLineId);
+      await createDiscrepancy(
+        user,
+        {
+          grnLineId: line.id,
+          type: 'QUALITY',
+          quantity: rejected,
+          description:
+            input?.reason?.trim() ||
+            `Từ chối ${rejected} ${line.poLine.material.uom} ${line.poLine.material.name} khi nhận hàng.`,
+        },
+        tx,
+      );
+    }
 
     await writeAudit(
       {
