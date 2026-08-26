@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+build/
+.env
+.env*.local
+*.log
+.DS_Store
+next-env.d.ts
+
+# Cơ sở dữ liệu chạy tại chỗ khi phát triển
+.pgdata/
+
+# Kết quả kiểm thử
+test-results/
+e2e-report/
+playwright-report/
