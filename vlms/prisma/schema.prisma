@@ -1,0 +1,765 @@
+// CTG VLMS - San thuong mai vat lieu xay dung B2B
+// Mo hinh du lieu bam baseline 61 quy trinh CTG BuildHub V1.0
+// Quy tac xuyen he thong:
+//   BR-GEN-01  Moi ban ghi nghiep vu deu mang organizationId
+//   BR-GEN-02  Ban ghi da phat hanh khong ghi de, sua bang revision
+//   BR-GEN-05  Moi hanh dong co audit va idempotent
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- IAM
+
+enum OrgType {
+  BUYER // Chu dau tu / Nha thau mua hang
+  SUPPLIER // Nha cung cap vat lieu
+  PLATFORM // Quan tri san
+}
+
+enum OrgStatus {
+  DRAFT
+  IN_REVIEW
+  VERIFIED
+  SUSPENDED
+}
+
+enum Role {
+  REQUESTER // Nguoi de nghi mua
+  BUYER // Chuyen vien mua hang
+  APPROVER // Nguoi phe duyet theo han muc
+  RECEIVER // Nguoi nhan hang tai cong truong
+  AP // Ke toan cong no
+  TREASURY // Ngan quy, thuc hien chi tien
+  SUPPLIER_ADMIN // Quan tri nha cung cap
+  PLATFORM_ADMIN // Quan tri san
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  name      String
+  taxCode   String    @unique
+  type      OrgType
+  status    OrgStatus @default(VERIFIED)
+  address   String?
+  phone     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  users                 User[]
+  projects              Project[]
+  catalogItems          CatalogItem[]
+  requisitions          PurchaseRequisition[]
+  rfqs                  Rfq[]
+  invitations           RfqInvitation[]
+  quotes                Quote[]
+  buyerOrders           PurchaseOrder[]       @relation("BuyerOrders")
+  supplierOrders        PurchaseOrder[]       @relation("SupplierOrders")
+  buyerGrns             Grn[]                 @relation("BuyerGrns")
+  supplierGrns          Grn[]                 @relation("SupplierGrns")
+  buyerInvoices         Invoice[]             @relation("BuyerInvoices")
+  supplierInvoices      Invoice[]             @relation("SupplierInvoices")
+  bankAccounts          SupplierBankAccount[]
+  buyerPayments         PaymentRequest[]      @relation("BuyerPaymentRequests")
+  supplierPayments      PaymentRequest[]      @relation("SupplierPaymentRequests")
+  buyerDiscrepancies    Discrepancy[]         @relation("BuyerDiscrepancies")
+  supplierDiscrepancies Discrepancy[]         @relation("SupplierDiscrepancies")
+  buyerCreditNotes      CreditNote[]          @relation("BuyerCreditNotes")
+  supplierCreditNotes   CreditNote[]          @relation("SupplierCreditNotes")
+  auditLogs             AuditLog[]
+
+  @@index([type, status])
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  fullName       String
+  passwordHash   String
+  role           Role
+  organizationId String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, role])
+}
+
+// ------------------------------------------------------------ Du an / WBS
+
+model Project {
+  id             String   @id @default(cuid())
+  code           String // Digital Project ID - duy nhat trong mot to chuc
+  name           String
+  organizationId String
+  location       String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  wbsItems     Wbs[]
+  requisitions PurchaseRequisition[]
+
+  @@unique([organizationId, code])
+}
+
+model Wbs {
+  id        String   @id @default(cuid())
+  projectId String
+  code      String
+  name      String
+  budget    Decimal  @db.Decimal(18, 2) // Ngan sach co so cua hang muc
+  committed Decimal  @default(0) @db.Decimal(18, 2) // Da cam ket qua PR/PO da duyet
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project  @relation(fields: [projectId], references: [id])
+  prLines PrLine[]
+  poLines PoLine[]
+
+  @@unique([projectId, code])
+}
+
+// ------------------------------------------------------- Danh muc vat lieu
+
+model MaterialCategory {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  materials Material[]
+}
+
+/// Material Master - danh muc vat lieu chuan cua san, do Data Steward quan ly
+model Material {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  name       String
+  categoryId String
+  uom        String // Don vi tinh chuan
+  spec       String? // Quy cach ky thuat
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category     MaterialCategory @relation(fields: [categoryId], references: [id])
+  catalogItems CatalogItem[]
+  prLines      PrLine[]
+  rfqLines     RfqLine[]
+  quoteLines   QuoteLine[]
+  poLines      PoLine[]
+
+  @@index([categoryId, isActive])
+}
+
+/// SKU cua mot nha cung cap, anh xa vao Material Master
+model CatalogItem {
+  id             String   @id @default(cuid())
+  organizationId String // Nha cung cap so huu SKU nay
+  materialId     String
+  sku            String
+  brand          String?
+  listPrice      Decimal  @db.Decimal(18, 2)
+  currency       String   @default("VND")
+  leadTimeDays   Int      @default(7)
+  minOrderQty    Decimal  @default(1) @db.Decimal(18, 3)
+  certification  String? // Chung chi chat luong kem theo
+  isPublished    Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  material     Material     @relation(fields: [materialId], references: [id])
+
+  @@unique([organizationId, sku])
+  @@index([materialId, isPublished])
+}
+
+// --------------------------------------------- COM-02 De nghi mua (PR)
+
+enum PrStatus {
+  DRAFT
+  SUBMITTED
+  BUDGET_CHECK
+  APPROVED
+  REJECTED
+  CONVERTED // Da chuyen thanh RFQ
+}
+
+model PurchaseRequisition {
+  id             String    @id @default(cuid())
+  code           String
+  organizationId String
+  projectId      String
+  createdById    String
+  status         PrStatus  @default(DRAFT)
+  neededBy       DateTime
+  note           String?
+  totalValue     Decimal   @default(0) @db.Decimal(18, 2)
+  submittedAt    DateTime?
+  decidedAt      DateTime?
+  decidedById    String?
+  decisionReason String?
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project      @relation(fields: [projectId], references: [id])
+  lines        PrLine[]
+  rfqs         Rfq[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+model PrLine {
+  id         String  @id @default(cuid())
+  prId       String
+  materialId String
+  wbsId      String
+  quantity   Decimal @db.Decimal(18, 3)
+  estPrice   Decimal @db.Decimal(18, 2)
+  note       String?
+
+  pr       PurchaseRequisition @relation(fields: [prId], references: [id], onDelete: Cascade)
+  material Material            @relation(fields: [materialId], references: [id])
+  wbs      Wbs                 @relation(fields: [wbsId], references: [id])
+
+  @@index([prId])
+}
+
+// ------------------------------------- SRC-02..05 RFQ / Bao gia / Award
+
+enum RfqStatus {
+  DRAFT
+  ISSUED
+  CLOSED
+  AWARDED
+  CANCELLED
+}
+
+model Rfq {
+  id             String    @id @default(cuid())
+  code           String
+  organizationId String // To chuc mua phat hanh RFQ
+  prId           String
+  status         RfqStatus @default(DRAFT)
+  closingAt      DateTime
+  issuedAt       DateTime?
+  terms          String?
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  pr           PurchaseRequisition @relation(fields: [prId], references: [id])
+  lines        RfqLine[]
+  invitations  RfqInvitation[]
+  quotes       Quote[]
+  award        Award?
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+}
+
+model RfqLine {
+  id         String  @id @default(cuid())
+  rfqId      String
+  materialId String
+  quantity   Decimal @db.Decimal(18, 3)
+  uom        String
+
+  rfq        Rfq         @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  material   Material    @relation(fields: [materialId], references: [id])
+  quoteLines QuoteLine[]
+
+  @@index([rfqId])
+}
+
+model RfqInvitation {
+  id             String   @id @default(cuid())
+  rfqId          String
+  organizationId String // Nha cung cap duoc moi
+  invitedAt      DateTime @default(now())
+
+  rfq          Rfq          @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([rfqId, organizationId])
+}
+
+enum QuoteStatus {
+  DRAFT
+  SUBMITTED
+  WON
+  LOST
+}
+
+model Quote {
+  id             String      @id @default(cuid())
+  code           String
+  rfqId          String
+  organizationId String // Nha cung cap bao gia
+  status         QuoteStatus @default(DRAFT)
+  validUntil     DateTime
+  deliveryDays   Int         @default(7)
+  paymentTerms   String?
+  totalValue     Decimal     @default(0) @db.Decimal(18, 2)
+  submittedAt    DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  rfq          Rfq          @relation(fields: [rfqId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  lines        QuoteLine[]
+  award        Award?
+
+  @@unique([rfqId, organizationId])
+  @@index([organizationId, status])
+}
+
+model QuoteLine {
+  id         String  @id @default(cuid())
+  quoteId    String
+  rfqLineId  String
+  materialId String
+  unitPrice  Decimal @db.Decimal(18, 2)
+  taxRate    Decimal @default(0.08) @db.Decimal(5, 4)
+  note       String?
+
+  quote    Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  rfqLine  RfqLine  @relation(fields: [rfqLineId], references: [id])
+  material Material @relation(fields: [materialId], references: [id])
+
+  @@unique([quoteId, rfqLineId])
+}
+
+model Award {
+  id          String   @id @default(cuid())
+  rfqId       String   @unique
+  quoteId     String   @unique
+  awardedById String
+  reason      String // Ly do lua chon - bat buoc de kiem toan
+  awardedAt   DateTime @default(now())
+
+  rfq   Rfq            @relation(fields: [rfqId], references: [id])
+  quote Quote          @relation(fields: [quoteId], references: [id])
+  po    PurchaseOrder?
+}
+
+// --------------------------------------------------- COM-03 Don hang (PO)
+
+enum PoStatus {
+  DRAFT
+  APPROVED
+  ISSUED
+  ACKNOWLEDGED
+  RECEIVING
+  CLOSED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id              String    @id @default(cuid())
+  code            String
+  buyerOrgId      String
+  supplierOrgId   String
+  awardId         String?   @unique
+  status          PoStatus  @default(DRAFT)
+  currency        String    @default("VND")
+  subtotal        Decimal   @default(0) @db.Decimal(18, 2)
+  taxTotal        Decimal   @default(0) @db.Decimal(18, 2)
+  grandTotal      Decimal   @default(0) @db.Decimal(18, 2)
+  deliveryDate    DateTime
+  deliveryAddress String
+  issuedAt        DateTime?
+  acknowledgedAt  DateTime?
+  closedAt        DateTime?
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  buyerOrg    Organization @relation("BuyerOrders", fields: [buyerOrgId], references: [id])
+  supplierOrg Organization @relation("SupplierOrders", fields: [supplierOrgId], references: [id])
+  award       Award?       @relation(fields: [awardId], references: [id])
+  lines       PoLine[]
+  grns        Grn[]
+  invoices    Invoice[]
+
+  @@unique([buyerOrgId, code])
+  @@index([supplierOrgId, status])
+}
+
+model PoLine {
+  id          String  @id @default(cuid())
+  poId        String
+  materialId  String
+  wbsId       String
+  quantity    Decimal @db.Decimal(18, 3)
+  receivedQty Decimal @default(0) @db.Decimal(18, 3)
+  invoicedQty Decimal @default(0) @db.Decimal(18, 3)
+  unitPrice   Decimal @db.Decimal(18, 2)
+  taxRate     Decimal @db.Decimal(5, 4)
+  lineTotal   Decimal @db.Decimal(18, 2)
+
+  po       PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  material Material      @relation(fields: [materialId], references: [id])
+  wbs      Wbs           @relation(fields: [wbsId], references: [id])
+  grnLines GrnLine[]
+
+  @@index([poId])
+}
+
+// -------------------------------------------- FUL-02 Nhan hang (GRN)
+
+enum GrnStatus {
+  DRAFT
+  ACCEPTED
+  PARTIAL
+  QUARANTINED
+  REJECTED
+}
+
+model Grn {
+  id            String    @id @default(cuid())
+  code          String
+  poId          String
+  buyerOrgId    String
+  supplierOrgId String
+  status        GrnStatus @default(DRAFT)
+  receivedById  String
+  receivedAt    DateTime  @default(now())
+  vehicleNo     String?
+  note          String?
+  createdAt     DateTime  @default(now())
+
+  po            PurchaseOrder @relation(fields: [poId], references: [id])
+  buyerOrg      Organization  @relation("BuyerGrns", fields: [buyerOrgId], references: [id])
+  supplierOrg   Organization  @relation("SupplierGrns", fields: [supplierOrgId], references: [id])
+  lines         GrnLine[]
+  discrepancies Discrepancy[]
+
+  @@unique([buyerOrgId, code])
+  @@index([poId])
+}
+
+model GrnLine {
+  id           String  @id @default(cuid())
+  grnId        String
+  poLineId     String
+  deliveredQty Decimal @db.Decimal(18, 3)
+  acceptedQty  Decimal @db.Decimal(18, 3)
+  rejectedQty  Decimal @default(0) @db.Decimal(18, 3)
+  reason       String?
+
+  grn           Grn           @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  poLine        PoLine        @relation(fields: [poLineId], references: [id])
+  discrepancies Discrepancy[]
+
+  @@index([grnId])
+}
+
+// ------------------------------- FIN-01 Hoa don va doi chieu 3 chieu
+
+enum InvoiceStatus {
+  RECEIVED
+  MATCHED
+  EXCEPTION
+  POSTED
+  PAID
+}
+
+enum MatchOutcome {
+  MATCHED
+  QTY_MISMATCH
+  PRICE_MISMATCH
+  MISSING_GRN
+  OVER_PO
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  code          String // So hoa don do NCC phat hanh
+  poId          String
+  buyerOrgId    String
+  supplierOrgId String
+  status        InvoiceStatus @default(RECEIVED)
+  issueDate     DateTime
+  subtotal      Decimal       @db.Decimal(18, 2)
+  taxTotal      Decimal       @db.Decimal(18, 2)
+  grandTotal    Decimal       @db.Decimal(18, 2)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  po           PurchaseOrder        @relation(fields: [poId], references: [id])
+  buyerOrg     Organization         @relation("BuyerInvoices", fields: [buyerOrgId], references: [id])
+  supplierOrg  Organization         @relation("SupplierInvoices", fields: [supplierOrgId], references: [id])
+  lines        InvoiceLine[]
+  matchResult  MatchResult?
+  paymentLines PaymentRequestLine[]
+
+  @@unique([supplierOrgId, code])
+  @@index([poId])
+}
+
+model InvoiceLine {
+  id        String  @id @default(cuid())
+  invoiceId String
+  poLineId  String
+  quantity  Decimal @db.Decimal(18, 3)
+  unitPrice Decimal @db.Decimal(18, 2)
+  taxRate   Decimal @db.Decimal(5, 4)
+  lineTotal Decimal @db.Decimal(18, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+/// Ket qua doi chieu PO - GRN - Invoice, bat bien sau khi tao
+model MatchResult {
+  id        String       @id @default(cuid())
+  invoiceId String       @unique
+  outcome   MatchOutcome
+  detail    Json // Chi tiet lech theo tung dong
+  matchedAt DateTime     @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------ Audit va Idempotency
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorId        String
+  actorRole      Role
+  entityType     String
+  entityId       String
+  action         String
+  fromState      String?
+  toState        String?
+  reason         String?
+  metadata       Json?
+  correlationId  String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, entityType, entityId])
+  @@index([correlationId])
+}
+
+/// Chong tao trung ban ghi tai chinh va don hang khi client retry
+model IdempotencyKey {
+  key       String   @id
+  scope     String
+  resultId  String
+  createdAt DateTime @default(now())
+
+  @@index([scope])
+}
+
+// -------------------------------- FIN-02, FIN-03 Thanh toan va cong no
+
+enum BankAccountStatus {
+  PENDING // Nha cung cap vua khai, chua duoc xac minh
+  VERIFIED // Da xac minh, duoc phep nhan tien
+  REJECTED
+  SUPERSEDED // Bi thay the boi tai khoan moi
+}
+
+/// Tai khoan ngan hang cua nha cung cap.
+///
+/// Doi tai khoan la kenh gian lan pho bien nhat trong thanh toan B2B (CT-06).
+/// Moi lan khai moi deu phai qua xac minh doc lap, va nguoi xac minh khong duoc
+/// la nguoi phe duyet de nghi thanh toan dung tai khoan do.
+model SupplierBankAccount {
+  id             String            @id @default(cuid())
+  organizationId String
+  bankName       String
+  branch         String?
+  accountNumber  String
+  accountHolder  String
+  status         BankAccountStatus @default(PENDING)
+  declaredById   String
+  verifiedById   String?
+  verifiedAt     DateTime?
+  rejectReason   String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  paymentRequests PaymentRequest[]
+
+  @@unique([organizationId, accountNumber])
+  @@index([organizationId, status])
+}
+
+enum PaymentRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+model PaymentRequest {
+  id             String               @id @default(cuid())
+  code           String
+  buyerOrgId     String
+  supplierOrgId  String
+  bankAccountId  String
+  status         PaymentRequestStatus @default(DRAFT)
+  totalAmount    Decimal              @db.Decimal(18, 2)
+  dueDate        DateTime
+  note           String?
+  createdById    String
+  submittedAt    DateTime?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionReason String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  buyerOrg    Organization         @relation("BuyerPaymentRequests", fields: [buyerOrgId], references: [id])
+  supplierOrg Organization         @relation("SupplierPaymentRequests", fields: [supplierOrgId], references: [id])
+  bankAccount SupplierBankAccount  @relation(fields: [bankAccountId], references: [id])
+  lines       PaymentRequestLine[]
+  payment     Payment?
+
+  @@unique([buyerOrgId, code])
+  @@index([buyerOrgId, status])
+}
+
+model PaymentRequestLine {
+  id               String  @id @default(cuid())
+  paymentRequestId String
+  invoiceId        String
+  amount           Decimal @db.Decimal(18, 2)
+
+  paymentRequest PaymentRequest @relation(fields: [paymentRequestId], references: [id], onDelete: Cascade)
+  invoice        Invoice        @relation(fields: [invoiceId], references: [id])
+
+  @@unique([paymentRequestId, invoiceId])
+  @@index([invoiceId])
+}
+
+enum PaymentStatus {
+  SENT
+  PAID
+  FAILED
+}
+
+/// Lenh chi da phat ra ngan hang. Bat bien sau khi tao.
+model Payment {
+  id               String        @id @default(cuid())
+  code             String
+  paymentRequestId String        @unique
+  status           PaymentStatus @default(SENT)
+  amount           Decimal       @db.Decimal(18, 2)
+  bankRef          String
+  executedById     String
+  executedAt       DateTime      @default(now())
+
+  paymentRequest PaymentRequest @relation(fields: [paymentRequestId], references: [id])
+}
+
+// ---------------------------- FUL-03 Thieu, thua, sai va tra hang
+
+enum DiscrepancyType {
+  SHORTAGE // Giao thieu so voi phieu giao
+  OVERAGE // Giao thua
+  QUALITY // Hang loi, khong dat chat luong
+  WRONG_ITEM // Sai quy cach, sai chung loai
+}
+
+enum DiscrepancyStatus {
+  OPEN // Vua ghi nhan, cho nha cung cap phan hoi
+  INVESTIGATING // Nha cung cap da phan hoi, dang lam ro
+  AGREED // Hai ben thong nhat huong xu ly
+  CLOSED // Da xu ly xong
+}
+
+enum Responsibility {
+  SUPPLIER
+  BUYER
+  CARRIER
+  UNDETERMINED
+}
+
+enum DiscrepancyResolution {
+  REPLACE // Nha cung cap giao bu
+  RETURN // Tra lai hang da nhan
+  CREDIT // Giam tru cong no
+  ACCEPT // Chap nhan, khong dieu chinh
+}
+
+/// Sai lech phat hien khi nhan hang.
+///
+/// Phieu nhan hang goc KHONG bao gio bi sua. Moi dieu chinh deu di qua ban ghi
+/// nay va co dau vet kiem toan rieng, dung nguyen tac BR-GEN-02.
+model Discrepancy {
+  id             String                 @id @default(cuid())
+  code           String
+  grnId          String
+  grnLineId      String
+  buyerOrgId     String
+  supplierOrgId  String
+  type           DiscrepancyType
+  status         DiscrepancyStatus      @default(OPEN)
+  quantity       Decimal                @db.Decimal(18, 3)
+  responsibility Responsibility         @default(UNDETERMINED)
+  resolution     DiscrepancyResolution?
+  description    String
+  supplierNote   String?
+  resolutionNote String?
+  creditAmount   Decimal?               @db.Decimal(18, 2)
+  raisedById     String
+  respondedById  String?
+  respondedAt    DateTime?
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  grn         Grn          @relation(fields: [grnId], references: [id])
+  grnLine     GrnLine      @relation(fields: [grnLineId], references: [id])
+  buyerOrg    Organization @relation("BuyerDiscrepancies", fields: [buyerOrgId], references: [id])
+  supplierOrg Organization @relation("SupplierDiscrepancies", fields: [supplierOrgId], references: [id])
+  creditNote  CreditNote?
+
+  @@unique([buyerOrgId, code])
+  @@index([buyerOrgId, status])
+  @@index([supplierOrgId, status])
+}
+
+/// Khoan giam tru cong no phat sinh tu mot sai lech da duoc thong nhat.
+model CreditNote {
+  id            String   @id @default(cuid())
+  code          String
+  discrepancyId String   @unique
+  buyerOrgId    String
+  supplierOrgId String
+  amount        Decimal  @db.Decimal(18, 2)
+  issuedById    String
+  createdAt     DateTime @default(now())
+
+  discrepancy Discrepancy  @relation(fields: [discrepancyId], references: [id])
+  buyerOrg    Organization @relation("BuyerCreditNotes", fields: [buyerOrgId], references: [id])
+  supplierOrg Organization @relation("SupplierCreditNotes", fields: [supplierOrgId], references: [id])
+
+  @@unique([buyerOrgId, code])
+  @@index([supplierOrgId])
+}

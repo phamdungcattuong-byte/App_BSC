@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium
+           transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-navy-700 text-white hover:bg-navy-800 focus-visible:ring-navy-500;
+  }
+  .btn-accent {
+    @apply btn bg-teal-500 text-white hover:bg-teal-600 focus-visible:ring-teal-400;
+  }
+  .btn-ghost {
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-100
+           focus-visible:ring-slate-400;
+  }
+  .btn-danger {
+    @apply btn border border-red-300 bg-white text-red-700 hover:bg-red-50 focus-visible:ring-red-400;
+  }
+
+  .card {
+    @apply rounded-lg border border-slate-200 bg-white shadow-sm;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-slate-300 px-3 py-2 text-sm
+           focus:border-navy-500 focus:outline-none focus:ring-1 focus:ring-navy-500;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-slate-700;
+  }
+
+  .table {
+    @apply w-full border-collapse text-sm;
+  }
+  .table thead th {
+    @apply border-b border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold
+           uppercase tracking-wide text-slate-600;
+  }
+  .table tbody td {
+    @apply border-b border-slate-100 px-3 py-2 align-top text-slate-700;
+  }
+  .num {
+    @apply text-right tabular-nums;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded px-2 py-0.5 text-xs font-medium;
+  }
+}
