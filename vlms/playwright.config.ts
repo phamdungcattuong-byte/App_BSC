@@ -4,7 +4,8 @@ import { defineConfig, devices } from '@playwright/test';
  * Kiểm thử end-to-end đi hết luồng nghiệp vụ của sàn.
  *
  * Chạy: npm run test:e2e
- * Điều kiện: PostgreSQL đang chạy, đã seed dữ liệu, ứng dụng đã build.
+ * Điều kiện: PostgreSQL đang chạy và ứng dụng đã build. Dữ liệu mẫu được nạp lại
+ * tự động trước mỗi lượt chạy, xem e2e/global-setup.ts.
  *
  * Trên máy lập trình viên chỉ cần chạy `npx playwright install chromium` một lần.
  * Trong CI có sẵn Chromium, đặt biến CHROMIUM_PATH để dùng bản có sẵn thay vì tải lại.
@@ -13,6 +14,7 @@ const executablePath = process.env.CHROMIUM_PATH;
 
 export default defineConfig({
   testDir: './e2e',
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
   workers: 1,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'e2e-report' }]],

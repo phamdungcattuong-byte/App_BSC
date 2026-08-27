@@ -93,6 +93,13 @@ Mật khẩu chung cho mọi tài khoản: `matkhau123`
 | Nền tảng | Phiên đăng nhập ký HMAC, RBAC, audit log, idempotency | `src/lib` |
 | Chặn truy cập | Middleware kiểm quyền theo route trước khi render | `src/middleware.ts` |
 
+Ứng dụng điều hướng bằng cách tải cả trang, không dùng router phía client của
+App Router. Mọi màn hình đều dựng theo phiên đăng nhập nên không có trang nào
+nằm sẵn trong bộ nhớ đệm để tiết kiệm; đổi lại, điều hướng phía client có lúc
+tải xong dữ liệu trang mới mà không vẽ ra, khiến người dùng bấm xong phải nhìn
+màn hình cũ dù dữ liệu đã ghi. Xem `src/components/app-link.tsx` và
+`src/components/action-form.tsx`.
+
 ```
 src/
   app/
@@ -106,9 +113,10 @@ src/
       don-hang/           Đơn hàng, xác nhận, nhận hàng, hóa đơn
       nhan-hang/          Phiếu nhận hàng
       hoa-don/            Hóa đơn và kết quả đối chiếu ba chiều
+      sai-lech/           Hồ sơ sai lệch nhận hàng và hướng xử lý
       tai-khoan-ngan-hang/ Khai và xác minh tài khoản nhận tiền
       de-nghi-thanh-toan/ Đề nghị thanh toán, phê duyệt, lệnh chi
-      cong-no/            Công nợ phải trả theo tuổi nợ
+      cong-no/            Công nợ phải trả theo tuổi nợ, đã trừ giảm trừ
       nhat-ky/            Nhật ký kiểm toán
   features/               Quy tắc nghiệp vụ, tách khỏi giao diện
   lib/                    Hạ tầng dùng chung
@@ -137,6 +145,10 @@ Những quy tắc này được ép ở tầng nghiệp vụ, không thể lách
 | FIN-02 | Chỉ hóa đơn đã ghi sổ mới đưa được vào đề nghị thanh toán | `features/payment/service.ts` |
 | FIN-02 | Một hóa đơn không nằm trong hai đề nghị thanh toán cùng lúc | `features/payment/service.ts` |
 | FIN-03 | Maker-checker: người lập đề nghị không được thực hiện lệnh chi | `features/payment/service.ts` |
+| FUL-03 | Hàng bị từ chối khi nhận tự mở hồ sơ sai lệch, phiếu nhận hàng gốc không bị sửa | `features/order/service.ts` |
+| FUL-03 | Người ghi nhận sai lệch không được tự chốt hướng xử lý | `features/discrepancy/service.ts` |
+| FUL-03 | Khoản giảm trừ công nợ không vượt giá trị sai lệch theo đơn giá đơn hàng | `features/discrepancy/service.ts` |
+| FUL-03 | Trả hàng điều chỉnh số đã nhận trên dòng đơn hàng, không sửa phiếu nhận hàng | `features/discrepancy/service.ts` |
 
 ---
 
@@ -180,9 +192,16 @@ npm run test:e2e
 | `commerce-flow.spec.ts` | Đi trọn luồng từ đề nghị mua tới lệnh chi, qua bảy vai, mỗi vai một phiên trình duyệt riêng |
 | `controls.spec.ts` | CT-01 chặn truy cập chéo tổ chức, phân tách nhiệm vụ, chặn theo vai trò |
 | `payment-controls.spec.ts` | CT-06 gian lận đổi tài khoản ngân hàng, tự xác minh, và ranh giới quyền của ngân quỹ |
-| `discrepancy.spec.ts` | FUL-03 hàng bị từ chối khi nhận tự mở hồ sơ sai lệch, phiếu nhận hàng giữ nguyên |
+| `discrepancy.spec.ts` | FUL-03 trọn vòng sai lệch: tự mở hồ sơ, nhà cung cấp phản hồi, chốt giảm trừ công nợ, phiếu nhận hàng giữ nguyên |
 
-Kết quả trên môi trường phát triển: **8/8 đạt, khoảng 25 giây**, ổn định qua nhiều lượt chạy.
+Kết quả trên môi trường phát triển: **8/8 đạt, khoảng 31 giây**, chín lượt chạy
+liên tiếp đều xanh.
+
+Dữ liệu mẫu được nạp lại tự động trước mỗi lượt chạy (`e2e/global-setup.ts`).
+Các bài kiểm thử đi trọn vòng đời chứng từ nên để lại trạng thái thật — tài khoản
+ngân hàng bị thay thế, hóa đơn đã chi — chạy lượt sau trên đúng dữ liệu đó sẽ
+hỏng vì lý do không liên quan tới mã nguồn. Đặt `E2E_SKIP_SEED=1` nếu muốn giữ
+nguyên dữ liệu đang có để soi lỗi.
 
 Lưu ý khi chạy: khởi động server rồi mới chạy kiểm thử, và để server ấm vài giây.
 Chạy ngay lúc server vừa khởi động có thể làm bài kiểm thử đầu tiên chờ quá lâu.
@@ -213,7 +232,7 @@ Những phần sau nằm ngoài đợt này, cần bổ sung trước khi dùng 
 
 - Đối soát sao kê ngân hàng và hạch toán tự động (phần còn lại của FIN-03)
 - Quyết toán hợp đồng và đóng công nợ cuối kỳ (FIN-04)
-- Giao diện xử lý sai lệch FUL-03 (tầng dữ liệu và nghiệp vụ đã xong, còn màn hình)
+- Đối trừ phiếu giảm trừ vào từng hóa đơn cụ thể (hiện chỉ đối trừ trên tổng công nợ của nhà cung cấp)
 - Kho, tồn kho và đối chiếu tiêu hao (FUL-04, FUL-05)
 - Thi công, nghiệm thu, an toàn (nhóm CON)
 - Đội thợ và chấm công (nhóm WRK)

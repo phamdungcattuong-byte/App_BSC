@@ -14,6 +14,7 @@ import { conflict, dependency, invalid } from '@/lib/errors';
 import { BUSINESS_PARAMS, resolveApprovalTier } from '@/lib/config/business-params';
 import type { SessionUser } from '@/lib/auth';
 import { num } from '@/lib/money';
+import { getCreditBySupplier } from '@/features/discrepancy/service';
 
 // ------------------------------------------------ Tài khoản ngân hàng
 
@@ -464,6 +465,14 @@ export interface DebtRow {
   overdue: number;
   total: number;
   invoiceCount: number;
+  /** Tổng phiếu giảm trừ đã phát hành cho nhà cung cấp này (FUL-03). */
+  credit: number;
+  /** Phần giảm trừ đối trừ được vào dư nợ hiện có. */
+  applied: number;
+  /** Phần giảm trừ chưa có công nợ để đối trừ, chờ kỳ mua hàng sau. */
+  unapplied: number;
+  /** Số thực phải trả sau khi đối trừ, không bao giờ âm. */
+  net: number;
 }
 
 /** Tổng hợp công nợ phải trả theo nhà cung cấp và tuổi nợ. */
@@ -473,25 +482,34 @@ export async function getSupplierDebt(organizationId: string): Promise<{
 }> {
   const buckets = BUSINESS_PARAMS.debtAgingBuckets;
 
-  const invoices = await prisma.invoice.findMany({
-    where: { buyerOrgId: organizationId, status: InvoiceStatus.POSTED },
-    include: { supplierOrg: { select: { id: true, name: true } } },
-  });
+  const [invoices, creditBySupplier] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { buyerOrgId: organizationId, status: InvoiceStatus.POSTED },
+      include: { supplierOrg: { select: { id: true, name: true } } },
+    }),
+    getCreditBySupplier(organizationId),
+  ]);
 
   const now = Date.now();
   const bySupplier = new Map<string, DebtRow>();
 
+  const blankRow = (supplierId: string, supplierName: string): DebtRow => ({
+    supplierId,
+    supplierName,
+    buckets: new Array(buckets.length + 1).fill(0),
+    overdue: 0,
+    total: 0,
+    invoiceCount: 0,
+    credit: 0,
+    applied: 0,
+    unapplied: 0,
+    net: 0,
+  });
+
   for (const invoice of invoices) {
     const row =
       bySupplier.get(invoice.supplierOrgId) ??
-      ({
-        supplierId: invoice.supplierOrgId,
-        supplierName: invoice.supplierOrg.name,
-        buckets: new Array(buckets.length + 1).fill(0),
-        overdue: 0,
-        total: 0,
-        invoiceCount: 0,
-      } satisfies DebtRow);
+      blankRow(invoice.supplierOrgId, invoice.supplierOrg.name);
 
     const ageDays = Math.floor((now - invoice.issueDate.getTime()) / 86_400_000);
     const amount = num(invoice.grandTotal);
@@ -507,13 +525,33 @@ export async function getSupplierDebt(organizationId: string): Promise<{
     bySupplier.set(invoice.supplierOrgId, row);
   }
 
+  // Nhà cung cấp có giảm trừ nhưng không còn hóa đơn chưa trả vẫn phải hiện,
+  // nếu không khoản giảm trừ sẽ biến mất khỏi báo cáo.
+  const missing = [...creditBySupplier.keys()].filter((id) => !bySupplier.has(id));
+  if (missing.length > 0) {
+    const orgs = await prisma.organization.findMany({
+      where: { id: { in: missing } },
+      select: { id: true, name: true },
+    });
+    for (const org of orgs) bySupplier.set(org.id, blankRow(org.id, org.name));
+  }
+
+  for (const row of bySupplier.values()) {
+    row.credit = creditBySupplier.get(row.supplierId) ?? 0;
+    // Chỉ đối trừ tới hết dư nợ hiện có. Phần dôi ra không làm công nợ âm mà
+    // được tách riêng, chờ đối trừ vào hóa đơn của kỳ sau.
+    row.applied = Math.min(row.credit, row.total);
+    row.unapplied = row.credit - row.applied;
+    row.net = row.total - row.applied;
+  }
+
   const bucketLabels = [
     ...buckets.map((limit, i) => (i === 0 ? `Đến ${limit} ngày` : `${buckets[i - 1] + 1}–${limit} ngày`)),
     `Trên ${buckets[buckets.length - 1]} ngày`,
   ];
 
   return {
-    rows: [...bySupplier.values()].sort((a, b) => b.total - a.total),
+    rows: [...bySupplier.values()].sort((a, b) => b.net - a.net),
     bucketLabels,
   };
 }

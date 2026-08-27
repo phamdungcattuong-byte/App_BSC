@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/app-link';
 import { prisma } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { can, roleLabel } from '@/lib/rbac';
@@ -43,8 +43,16 @@ export default async function DashboardPage() {
 
   const role = user.role;
 
-  const [prPending, rfqOpen, poOpen, invoiceException, quotesToSubmit, poToAck, grnCount] =
-    await Promise.all([
+  const [
+    prPending,
+    rfqOpen,
+    poOpen,
+    invoiceException,
+    quotesToSubmit,
+    poToAck,
+    grnCount,
+    discrepancyOpen,
+  ] = await Promise.all([
       prisma.purchaseRequisition.count({
         where: { organizationId: orgId, status: { in: ['SUBMITTED', 'BUDGET_CHECK'] } },
       }),
@@ -66,7 +74,13 @@ export default async function DashboardPage() {
       prisma.grn.count({
         where: isSupplier ? { supplierOrgId: orgId } : { buyerOrgId: orgId },
       }),
-    ]);
+      prisma.discrepancy.count({
+        where: {
+          ...(isSupplier ? { supplierOrgId: orgId } : { buyerOrgId: orgId }),
+          status: { not: 'CLOSED' },
+        },
+      }),
+  ]);
 
   return (
     <>
@@ -101,6 +115,14 @@ export default async function DashboardPage() {
             {can(role, 'invoice', 'view') ? (
               <Stat label="Hóa đơn có sai lệch" value={invoiceException} href="/hoa-don" />
             ) : null}
+            {can(role, 'discrepancy', 'view') ? (
+              <Stat
+                label="Sai lệch chờ xử lý"
+                value={discrepancyOpen}
+                hint="Hồ sơ sai lệch chưa đóng"
+                href="/sai-lech"
+              />
+            ) : null}
           </>
         ) : (
           <>
@@ -124,6 +146,14 @@ export default async function DashboardPage() {
                 value={invoiceException}
                 hint="Đối chiếu ba chiều chưa đạt"
                 href="/hoa-don"
+              />
+            ) : null}
+            {can(role, 'discrepancy', 'view') ? (
+              <Stat
+                label="Sai lệch chờ xử lý"
+                value={discrepancyOpen}
+                hint="Hồ sơ sai lệch chưa đóng"
+                href="/sai-lech"
               />
             ) : null}
           </>

@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useHydrated } from '@/components/action-form';
 import { createRequisitionAction, type ActionState } from '../actions';
 
@@ -42,23 +41,39 @@ export function RequisitionForm({
   preselectedMaterialId?: string;
 }) {
   const [state, setState] = useState<ActionState>({});
-  const [pending, startTransition] = useTransition();
-  const [navigating, setNavigating] = useState(false);
+  const [busy, setBusy] = useState(false);
   const hydrated = useHydrated();
-  const router = useRouter();
-  const disabled = pending || navigating || !hydrated;
+  const disabled = busy || !hydrated;
 
-  useEffect(() => {
-    if (state.redirectTo) {
-      setNavigating(true);
-      router.push(state.redirectTo);
-    }
-  }, [state.redirectTo, router]);
+  const mounted = useRef(true);
+  useEffect(() => () => {
+    mounted.current = false;
+  }, []);
 
+  // Cùng lý do như ActionForm: điều hướng bằng cách tải lại cả trang, không
+  // dùng router phía client sau khi đã gọi Server Action.
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     const formData = new FormData(event.currentTarget);
-    startTransition(async () => setState(await createRequisitionAction({}, formData)));
+    setBusy(true);
+    setState({});
+    createRequisitionAction({}, formData).then(
+      (result) => {
+        if (!mounted.current) return;
+        if (result.redirectTo) {
+          window.location.assign(result.redirectTo);
+          return;
+        }
+        setState(result);
+        setBusy(false);
+      },
+      (error: unknown) => {
+        if (!mounted.current) return;
+        setState({ error: error instanceof Error ? error.message : 'Có lỗi xảy ra.' });
+        setBusy(false);
+      },
+    );
   }
 
   const firstMaterial =
@@ -267,7 +282,7 @@ export function RequisitionForm({
 
       <div className="flex gap-2">
         <button type="submit" className="btn-primary" disabled={disabled}>
-          {pending ? 'Đang lưu...' : 'Lưu đề nghị mua'}
+          {busy ? 'Đang lưu...' : 'Lưu đề nghị mua'}
         </button>
       </div>
     </form>

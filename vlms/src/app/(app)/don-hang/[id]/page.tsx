@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/app-link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { requirePermission } from '@/lib/auth';
@@ -68,7 +68,7 @@ export default async function PoDetailPage({
         title={`Đơn hàng ${po.code}`}
         description={`${po.buyerOrg.name} mua của ${po.supplierOrg.name}`}
         actions={
-          po.award ? (
+          po.award && can(user.role, 'rfq', 'view') ? (
             <Link href={`/hoi-gia/${po.award.rfq.id}`} className="btn-ghost">
               Xem yêu cầu báo giá {po.award.rfq.code}
             </Link>
@@ -227,9 +227,13 @@ export default async function PoDetailPage({
               {po.invoices.map((inv) => (
                 <tr key={inv.id}>
                   <td>
-                    <Link href={`/hoa-don/${inv.id}`} className="font-mono text-navy-700 underline">
-                      {inv.code}
-                    </Link>
+                    {can(user.role, 'invoice', 'view') ? (
+                      <Link href={`/hoa-don/${inv.id}`} className="font-mono text-navy-700 underline">
+                        {inv.code}
+                      </Link>
+                    ) : (
+                      <span className="font-mono text-xs">{inv.code}</span>
+                    )}
                   </td>
                   <td>{formatDate(inv.issueDate)}</td>
                   <td className="num font-medium">{formatVnd(inv.grandTotal)}</td>

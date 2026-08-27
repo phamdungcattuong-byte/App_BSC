@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/app-link';
 import { requireUser } from '@/lib/auth';
 import { can } from '@/lib/rbac';
 import { roleLabel } from '@/lib/rbac';
@@ -18,6 +18,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (can(role, 'purchaseOrder', 'view')) items.push({ href: '/don-hang', label: 'Đơn hàng' });
   if (can(role, 'grn', 'view')) items.push({ href: '/nhan-hang', label: 'Nhận hàng' });
   if (can(role, 'invoice', 'view')) items.push({ href: '/hoa-don', label: 'Hóa đơn' });
+  if (can(role, 'discrepancy', 'view'))
+    items.push({ href: '/sai-lech', label: 'Sai lệch nhận hàng' });
   if (can(role, 'bankAccount', 'view'))
     items.push({ href: '/tai-khoan-ngan-hang', label: 'Tài khoản ngân hàng' });
   if (can(role, 'paymentRequest', 'view'))

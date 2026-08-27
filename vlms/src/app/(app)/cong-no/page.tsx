@@ -14,15 +14,18 @@ export default async function DebtPage() {
 
   const grandTotal = rows.reduce((sum, r) => sum + r.total, 0);
   const grandOverdue = rows.reduce((sum, r) => sum + r.overdue, 0);
+  const grandApplied = rows.reduce((sum, r) => sum + r.applied, 0);
+  const grandUnapplied = rows.reduce((sum, r) => sum + r.unapplied, 0);
+  const grandNet = rows.reduce((sum, r) => sum + r.net, 0);
 
   return (
     <>
       <PageHeader
         title="Công nợ phải trả"
-        description={`Hóa đơn đã ghi sổ nhưng chưa chi tiền, phân theo tuổi nợ tính từ ngày phát hành. Hạn thanh toán mặc định ${BUSINESS_PARAMS.paymentTermDays} ngày.`}
+        description={`Hóa đơn đã ghi sổ nhưng chưa chi tiền, phân theo tuổi nợ tính từ ngày phát hành, đã trừ các phiếu giảm trừ từ hồ sơ sai lệch. Hạn thanh toán mặc định ${BUSINESS_PARAMS.paymentTermDays} ngày.`}
       />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-3">
+      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="card p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
             Tổng phải trả
@@ -43,9 +46,25 @@ export default async function DebtPage() {
         </div>
         <div className="card p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Số nhà cung cấp
+            Giảm trừ từ sai lệch
           </p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums text-navy-800">{rows.length}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-teal-700">
+            {formatVnd(grandApplied)}
+          </p>
+          {grandUnapplied > 0 ? (
+            <p className="mt-1 text-xs text-slate-500">
+              Còn {formatVnd(grandUnapplied)} chưa có công nợ để đối trừ
+            </p>
+          ) : null}
+        </div>
+        <div className="card p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Thực phải trả
+          </p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-navy-800">
+            {formatVnd(grandNet)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">{rows.length} nhà cung cấp</p>
         </div>
       </div>
 
@@ -69,6 +88,8 @@ export default async function DebtPage() {
                   ))}
                   <th className="num">Quá hạn</th>
                   <th className="num">Tổng</th>
+                  <th className="num">Giảm trừ</th>
+                  <th className="num">Thực phải trả</th>
                 </tr>
               </thead>
               <tbody>
@@ -84,7 +105,16 @@ export default async function DebtPage() {
                     <td className={`num ${row.overdue > 0 ? 'font-medium text-red-700' : ''}`}>
                       {row.overdue > 0 ? formatVnd(row.overdue) : '—'}
                     </td>
-                    <td className="num font-semibold text-navy-800">{formatVnd(row.total)}</td>
+                    <td className="num">{formatVnd(row.total)}</td>
+                    <td className={`num ${row.applied > 0 ? 'text-teal-700' : ''}`}>
+                      {row.applied > 0 ? `- ${formatVnd(row.applied)}` : '—'}
+                      {row.unapplied > 0 ? (
+                        <span className="block text-xs font-normal text-slate-500">
+                          chưa đối trừ {formatVnd(row.unapplied)}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="num font-semibold text-navy-800">{formatVnd(row.net)}</td>
                   </tr>
                 ))}
               </tbody>

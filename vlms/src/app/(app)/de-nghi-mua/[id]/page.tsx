@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/app-link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { requirePermission } from '@/lib/auth';
@@ -127,9 +127,13 @@ export default async function RequisitionDetailPage({
               <ul className="mt-2 space-y-1 text-sm">
                 {pr.rfqs.map((r) => (
                   <li key={r.id}>
-                    <Link href={`/hoi-gia/${r.id}`} className="font-mono text-navy-700 underline">
-                      {r.code}
-                    </Link>{' '}
+                    {can(user.role, 'rfq', 'view') ? (
+                      <Link href={`/hoi-gia/${r.id}`} className="font-mono text-navy-700 underline">
+                        {r.code}
+                      </Link>
+                    ) : (
+                      <span className="font-mono text-xs">{r.code}</span>
+                    )}{' '}
                     <StatusBadge status={r.status} />
                   </li>
                 ))}

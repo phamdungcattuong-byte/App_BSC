@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { AppLink as Link } from '@/components/app-link';
 
 export const metadata: Metadata = { title: 'Không tìm thấy' };
 

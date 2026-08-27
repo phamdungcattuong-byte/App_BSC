@@ -53,6 +53,14 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!can(session.role as Role, rule.resource, rule.action)) {
+    // Yêu cầu RSC (điều hướng phía client và cả prefetch của thẻ Link) chỉ nhận
+    // một mã 404 rỗng. Nếu trả nguyên trang báo lỗi dưới dạng RSC thì bộ định
+    // tuyến sẽ nhớ nhầm nội dung đó cho chính địa chỉ vừa gọi, làm lần chuyển
+    // trang sau đó treo. Trả 404 rỗng thì trình duyệt tự chuyển sang tải cả
+    // trang, và lần đó middleware mới dựng trang báo lỗi.
+    if (request.headers.get('RSC') === '1') {
+      return new NextResponse(null, { status: 404 });
+    }
     // Trả 404 thay vì 403 để không tiết lộ tài nguyên có tồn tại hay không.
     return NextResponse.rewrite(new URL('/khong-tim-thay', request.url), { status: 404 });
   }
@@ -69,6 +77,7 @@ export const config = {
     '/don-hang/:path*',
     '/nhan-hang/:path*',
     '/hoa-don/:path*',
+    '/sai-lech/:path*',
     '/tai-khoan-ngan-hang/:path*',
     '/de-nghi-thanh-toan/:path*',
     '/cong-no/:path*',

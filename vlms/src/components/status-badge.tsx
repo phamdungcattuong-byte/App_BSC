@@ -44,6 +44,10 @@ const STATUS: Record<string, { label: string; tone: keyof typeof TONES }> = {
   PAID: { label: 'Đã thanh toán', tone: 'success' },
   SENT: { label: 'Đã gửi ngân hàng', tone: 'progress' },
   FAILED: { label: 'Chi thất bại', tone: 'danger' },
+  // Sai lệch nhận hàng
+  OPEN: { label: 'Chờ phản hồi', tone: 'warning' },
+  INVESTIGATING: { label: 'Đang làm rõ', tone: 'progress' },
+  AGREED: { label: 'Đã thống nhất', tone: 'info' },
   // Kết quả đối chiếu
   QTY_MISMATCH: { label: 'Lệch số lượng', tone: 'danger' },
   PRICE_MISMATCH: { label: 'Lệch đơn giá', tone: 'danger' },

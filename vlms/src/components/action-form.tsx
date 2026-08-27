@@ -1,7 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 export interface FormState {
   error?: string;
@@ -13,12 +12,18 @@ export interface FormState {
  * Bọc một Server Action kèm hiển thị lỗi và trạng thái đang gửi.
  *
  * Vòng đời được điều khiển tường minh thay vì dựa vào useActionState:
+ *
  *   1. Chặn gửi khi React chưa hydrate. Nếu người dùng kịp bấm trong khoảng
  *      trang đã hiện nhưng chưa gắn sự kiện, trình duyệt gửi form theo kiểu
  *      native; hydrate chen vào giữa sẽ hủy điều hướng và nút kẹt vĩnh viễn.
- *   2. Chờ action trả kết quả, cập nhật thông báo, RỒI mới router.refresh().
- *      Làm mới trong lúc transition chưa kết thúc khiến cây render bị dựng lại
- *      giữa chừng và trạng thái đang gửi không bao giờ được gỡ.
+ *
+ *   2. Sau khi action chạy xong thì điều hướng bằng cách tải lại cả trang, chứ
+ *      không dùng router phía client. Trong phiên đã từng gọi Server Action,
+ *      các lần chuyển trang bằng router sau đó thỉnh thoảng nhận đủ dữ liệu
+ *      trang mới nhưng không bao giờ vẽ ra: nút vẫn kẹt ở trạng thái đang gửi
+ *      dù dữ liệu đã ghi xong. Tải cả trang thì luôn dựng lại từ máy chủ, đúng
+ *      với tính chất của ứng dụng chứng từ này, nơi mỗi thao tác đều đổi trạng
+ *      thái và cần dữ liệu mới nhất.
  */
 export function ActionForm({
   action,
@@ -30,24 +35,22 @@ export function ActionForm({
   className?: string;
 }) {
   const [state, setState] = useState<FormState>({});
-  const [pending, startTransition] = useTransition();
+  const [busy, setBusy] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const [navigating, setNavigating] = useState(false);
-  const router = useRouter();
 
-  useEffect(() => setHydrated(true), []);
-
-  // Điều hướng nằm NGOÀI transition của form. Gọi bên trong khiến transition chỉ
-  // kết thúc khi điều hướng xong và nút đứng mãi ở trạng thái đang gửi.
+  // Không đụng vào state sau khi component đã rời khỏi cây.
+  const mounted = useRef(true);
   useEffect(() => {
-    if (state.redirectTo) {
-      setNavigating(true);
-      router.push(state.redirectTo);
-    }
-  }, [state.redirectTo, router]);
+    setHydrated(true);
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
+
     const form = event.currentTarget;
     const formData = new FormData(form);
 
@@ -58,15 +61,31 @@ export function ActionForm({
       | undefined;
     if (submitter?.name) formData.set(submitter.name, submitter.value);
 
-    startTransition(async () => {
-      const result = await action({}, formData);
-      setState(result);
-    });
+    setBusy(true);
+    setState({});
+
+    action({}, formData).then(
+      (result) => {
+        if (!mounted.current) return;
+        if (result.redirectTo) {
+          // Giữ nguyên trạng thái đang gửi cho tới khi trang mới hiện ra.
+          window.location.assign(result.redirectTo);
+          return;
+        }
+        setState(result);
+        setBusy(false);
+      },
+      (error: unknown) => {
+        if (!mounted.current) return;
+        setState({ error: error instanceof Error ? error.message : 'Có lỗi xảy ra.' });
+        setBusy(false);
+      },
+    );
   }
 
   return (
     <form onSubmit={handleSubmit} className={className} data-hydrated={hydrated}>
-      {children(pending || navigating || !hydrated)}
+      {children(busy || !hydrated)}
       {state.error ? (
         <p role="alert" className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           {state.error}

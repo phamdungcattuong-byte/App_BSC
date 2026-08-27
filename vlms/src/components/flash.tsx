@@ -14,6 +14,9 @@ const MESSAGES: Record<string, string> = {
   'da-duyet-tt': 'Đã phê duyệt đề nghị thanh toán.',
   'da-tu-choi-tt': 'Đã từ chối đề nghị thanh toán.',
   'da-chi-tien': 'Đã phát lệnh chi và cập nhật công nợ.',
+  'da-ghi-nhan-sl': 'Đã ghi nhận sai lệch. Nhà cung cấp sẽ nhận được hồ sơ này.',
+  'da-phan-hoi-sl': 'Đã gửi phản hồi sai lệch.',
+  'da-xu-ly-sl': 'Đã chốt hướng xử lý sai lệch và áp dụng điều chỉnh.',
 };
 
 /**

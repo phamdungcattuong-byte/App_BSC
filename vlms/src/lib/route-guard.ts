@@ -20,6 +20,7 @@ export const ROUTE_PERMISSIONS: Array<{
   { prefix: '/hoi-gia/moi', resource: 'rfq', action: 'create' },
   { prefix: '/don-hang/moi', resource: 'purchaseOrder', action: 'create' },
   { prefix: '/de-nghi-thanh-toan/moi', resource: 'paymentRequest', action: 'create' },
+  { prefix: '/sai-lech/moi', resource: 'discrepancy', action: 'create' },
 
   // Trang danh sách và chi tiết: chỉ cần quyền xem.
   { prefix: '/vat-lieu', resource: 'catalog', action: 'view' },
@@ -29,6 +30,7 @@ export const ROUTE_PERMISSIONS: Array<{
   { prefix: '/don-hang', resource: 'purchaseOrder', action: 'view' },
   { prefix: '/nhan-hang', resource: 'grn', action: 'view' },
   { prefix: '/hoa-don', resource: 'invoice', action: 'view' },
+  { prefix: '/sai-lech', resource: 'discrepancy', action: 'view' },
   { prefix: '/tai-khoan-ngan-hang', resource: 'bankAccount', action: 'view' },
   { prefix: '/de-nghi-thanh-toan', resource: 'paymentRequest', action: 'view' },
   { prefix: '/cong-no', resource: 'debt', action: 'view' },
